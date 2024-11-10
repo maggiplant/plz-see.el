@@ -282,7 +282,14 @@ CONNECT-TIMEOUT, TIMEOUT and NOQUERY.  They are passed directly
 to `plz', which see.
 
 \(To silence checkdoc, we mention the internal argument REST.)"
-  (interactive `(get ,(read-from-minibuffer "Make GET request: ")))
+  (interactive '(nil nil))
+  (cond ((and (called-interactively-p)
+	      current-prefix-arg)
+	 (setq method (upcase (read-from-minibuffer "Request method: "))
+	       url (read-from-minibuffer (concat "Make " method " request: "))))
+	((called-interactively-p)
+	 (setq method 'get
+	       url (read-from-minibuffer "Make GET request: "))))
   (let ((method (pcase method
 		  ((or 'GET "GET" "get")
 		   'get)
@@ -294,17 +301,17 @@ to `plz', which see.
 		   'delete)
 		  (_ method))))
     (when (and plz-see-base-url
-               (string-prefix-p "/" url))
+	       (string-prefix-p "/" url))
       (setq url (concat plz-see-base-url url)))
     (dolist (h plz-see-base-headers)
       (unless (assoc (car h) headers)
 	(push h headers)))
     (apply #'plz method url
-           :headers headers
-           :as 'response
-           :then (plz-see--continue as then)
-           :else (plz-see--continue as (or else then))
-           rest)))
+	   :headers headers
+	   :as 'response
+	   :then (plz-see--continue as then)
+	   :else (plz-see--continue as (or else then))
+	   rest)))
 
 (provide 'plz-see)
 ;;; plz-see.el ends here
