@@ -281,20 +281,61 @@ Other possible keyword arguments are BODY-TYPE, DECODE, FINALLY,
 CONNECT-TIMEOUT, TIMEOUT and NOQUERY.  They are passed directly
 to `plz', which see.
 
+When called interactively, this function asks for an URL and performs
+a GET request on the specified URL.
+
+When called interactively with a prefix argument, the user is asked
+which request method should be used for the request before the user is
+asked for an URL. The possible values for the request method are
+\"GET\", \"POST\", \"PUT\" and \"DELETE\".
+
+When either \"POST\" or \"PUT\" is specified, the user is additionally
+asked what the request's body should be. The default value for this is
+the selected region.
+
 \(To silence checkdoc, we mention the internal argument REST.)"
-  (interactive `(get ,(read-from-minibuffer "Make GET request: ")))
-  (when (and plz-see-base-url
-             (string-prefix-p "/" url))
-    (setq url (concat plz-see-base-url url)))
-  (dolist (h plz-see-base-headers)
-    (unless (assoc (car h) headers)
-      (push h headers)))
-  (apply #'plz method url
-         :headers headers
-         :as 'response
-         :then (plz-see--continue as then)
-         :else (plz-see--continue as (or else then))
-         rest))
+  (interactive '(nil nil))
+  (let ((called-interactively (called-interactively-p)))
+    (cond ((and called-interactively
+                current-prefix-arg)
+           (setq method (intern
+                         (downcase
+                          (completing-read
+                           "Request method: "
+                           '("GET"
+                             "POST"
+                             "PUT"
+                             "DELETE")
+                           nil t "POST")))
+                 url (read-from-minibuffer
+                      (format "Make %s request: " method))))
+          (called-interactively
+           (setq method 'get
+                 url (read-from-minibuffer "Make GET request: "))))
+    ;; Use the currently selected region as a default value, when present
+    (let* ((default (when (and called-interactively
+                               (use-region-p))
+                      (buffer-substring-no-properties
+                       (region-beginning) (region-end))))
+           (body (when (and called-interactively
+                            (memq method '(post put)))
+                   (read-string "Request body: "
+                                nil nil default))))
+      (when (and plz-see-base-url
+                 (string-prefix-p "/" url))
+        (setq url (concat plz-see-base-url url)))
+      (dolist (h plz-see-base-headers)
+        (unless (assoc (car h) headers)
+          (push h headers)))
+      ;; Add :body to the rest argument when not already present
+      (when (and body (not (plist-get rest :body)))
+        (setq rest (plist-put rest :body body)))
+      (apply #'plz method url
+             :headers headers
+             :as 'response
+             :then (plz-see--continue as then)
+             :else (plz-see--continue as (or else then))
+             rest))))
 
 (provide 'plz-see)
 ;;; plz-see.el ends here
